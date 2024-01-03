@@ -4,9 +4,11 @@ import {createUserWithEmailAndPassword, updateProfile} from "firebase/auth";
 import {auth, db, storage} from "../../assets/firebase/firebase.js"
 import {ref, uploadBytesResumable, getDownloadURL} from "firebase/storage";
 import { doc, setDoc } from "firebase/firestore"
+import {Link, useNavigate} from "react-router-dom";
 
 const Index = () => {
     const [err, setErr] = useState(false)
+    const navigate = useNavigate()
     const handleSubmit = async (e) => {
         e.preventDefault()
         const displayName = e.target[0].value
@@ -16,29 +18,40 @@ const Index = () => {
 
         try {
             const res = await createUserWithEmailAndPassword(auth, email, password)
-            const storageRef = ref(storage, displayName);
+            const storageRef = ref(storage, `avatars/${res.user.uid}/${file.name}`);
             const uploadTask = uploadBytesResumable(storageRef, file);
 
-            uploadTask.on(
+            uploadTask.on('state_changed',
+                (snapshot) => {
+                    // Handle progress updates
+                },
                 (error) => {
+                    // Handle unsuccessful uploads
                     setErr(true)
                 },
                 () => {
-                    getDownloadURL(uploadTask.snapshot.ref).then( async (downloadURL) => {
+                    // Handle successful uploads on complete
+                    getDownloadURL(uploadTask.snapshot.ref).then(async (downloadURL) => {
                         await updateProfile(res.user, {
                             displayName,
                             photoURL: downloadURL
-                        })
+                        });
                         await setDoc(doc(db, "users", res.user.uid), {
                             uid: res.user.uid,
                             displayName,
                             email,
                             photoURL: downloadURL
-                        })
+                        });
+                        await setDoc(doc(db, 'userChats', res.user.uid), {})
+                        navigate('/')
+                    }).catch((error) => {
+                        // Handle any errors here
+                        setErr(true)
                     });
                 }
             );
         } catch (err) {
+            console.error(err)
             setErr(true)
         }
     }
@@ -60,7 +73,7 @@ const Index = () => {
                     <button>Sign Up</button>
                     {err && <span>Something went wrong</span>}
                 </form>
-                <p>You do have an account ? Login</p>
+                <p>You do have an account ? <Link to={'/login'}>Login</Link></p>
             </div>
         </div>
     );
